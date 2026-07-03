@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PEA - Panel de Control IoT</title>
+    <title>VitalAir - Panel de Control IoT</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -11,7 +11,7 @@
 
     <div class="container my-4">
         <header class="d-flex justify-content-between align-items-center pb-3 mb-4 border-bottom">
-            <h1 class="h3">📊 Monitoreo IoT - Feria de Ciencias</h1>
+            <h1 class="h3">📊 Monitoreo IoT Vital Air - Feria de Ciencias</h1>
             <div>
                 <select id="filtroPeriodo" class="form-select" onchange="cargarDatos()">
                     <option value="diario" selected>Últimas 24 Horas (Diario)</option>
@@ -22,28 +22,100 @@
             </div>
         </header>
 
+        <div class="card mb-4 shadow">
+            <div class="card-body text-center">
+
+                <h3 class="mb-3">
+                    Estado Actual del Aire
+                </h3>
+
+                <div id="estadoAire"
+                    class="display-3 fw-bold text-success">
+
+                    🟢 SEGURO
+
+                </div>
+
+                <p class="lead mt-3">
+                    Monóxido de Carbono actual:
+                    <strong id="valorActualGas">0 ppm</strong>
+                </p>
+
+            </div>
+
+            <div class="alert mt-3 text-center fw-bold" id="mensajeEstado">
+
+                El ambiente presenta condiciones normales.
+
+            </div>
+        </div>
+
         <div class="row g-4 mb-4">
+            <!-- Temperatura -->
             <div class="col-md-4">
-                <div class="card text-white bg-primary h-100">
+                <div class="card h-100 border-primary shadow">
+                    <div class="card-header bg-primary text-white">
+                        🌡 Temperatura
+                    </div>
+
                     <div class="card-body">
-                        <h5 class="card-title">Promedio Temperatura</h5>
-                        <h2 class="card-text" id="statTemp">0 °C</h2>
+                        <p>Promedio:
+                            <strong id="tempProm">0 °C</strong>
+                        </p>
+
+                        <p>Mínima:
+                            <strong id="tempMin">0 °C</strong>
+                        </p>
+
+                        <p>Máxima:
+                            <strong id="tempMax">0 °C</strong>
+                        </p>
                     </div>
                 </div>
             </div>
+
+            <!-- Humedad -->
             <div class="col-md-4">
-                <div class="card text-white bg-warning h-100">
+                <div class="card h-100 border-info shadow">
+                    <div class="card-header bg-info text-white">
+                        💧 Humedad
+                    </div>
+
                     <div class="card-body">
-                        <h5 class="card-title">Máximo Gas Detectado</h5>
-                        <h2 class="card-text" id="statGas">0 ppm</h2>
+                        <p>Promedio:
+                            <strong id="humProm">0 %</strong>
+                        </p>
+
+                        <p>Mínima:
+                            <strong id="humMin">0 %</strong>
+                        </p>
+
+                        <p>Máxima:
+                            <strong id="humMax">0 %</strong>
+                        </p>
                     </div>
                 </div>
             </div>
+
+            <!-- Monóxido de Carbono -->
             <div class="col-md-4">
-                <div class="card text-white bg-danger h-100">
+                <div class="card h-100 border-warning shadow">
+                    <div class="card-header bg-warning">
+                        ☣ Monóxido de Carbono
+                    </div>
+
                     <div class="card-body">
-                        <h5 class="card-title">Alertas en el Período</h5>
-                        <h2 class="card-text" id="statAlertas">0</h2>
+                        <p>Promedio:
+                            <strong id="gasProm">0 ppm</strong>
+                        </p>
+
+                        <p>Máximo:
+                            <strong id="gasMax">0 ppm</strong>
+                        </p>
+
+                        <p>Alertas:
+                            <strong id="statAlertas">0</strong>
+                        </p>
                     </div>
                 </div>
             </div>
@@ -68,12 +140,47 @@
                 const res = await response.json();
 
                 // Actualizar tarjetas
-                document.getElementById("statTemp").innerText = `${res.avg_temperatura} °C`;
-                document.getElementById("statGas").innerText = `${res.max_gas} ppm`;
-                document.getElementById("statAlertas").innerText = res.total_alertas;
+                //temperatura promedio, mínima y máxima
+                document.getElementById("tempProm").innerHTML =
+                res.temperatura.promedio + " °C";
+
+                document.getElementById("tempMin").innerHTML =
+                res.temperatura.minima + " °C";
+
+                document.getElementById("tempMax").innerHTML =
+                res.temperatura.maxima + " °C";
+
+                // humedad promedio, mínima y máxima
+                document.getElementById("humProm").innerHTML =
+                res.humedad.promedio + " %";
+
+                document.getElementById("humMin").innerHTML =
+                res.humedad.minima + " %";
+
+                document.getElementById("humMax").innerHTML =
+                res.humedad.maxima + " %";
+
+                // gas promedio y máxima
+                document.getElementById("gasProm").innerHTML =
+                res.gas.promedio + " ppm";
+
+                document.getElementById("gasMax").innerHTML =
+                res.gas.maximo + " ppm";
 
                 // Dibujar o refrescar gráfico
                 renderChart(res.grafico);
+
+                // Obtener la última medición de CO
+                const gasActual = res.grafico.gas.length > 0
+                    ? res.grafico.gas[res.grafico.gas.length - 1]
+                    : 0;
+
+                // Mostrar el valor actual
+                document.getElementById("valorActualGas").innerHTML =
+                    `${gasActual} ppm`;
+
+                // Actualizar el estado visual
+                actualizarEstado(gasActual);
             } catch (error) {
                 console.error("Error cargando la API:", error);
             }
@@ -104,7 +211,15 @@
                             borderColor: '#ffc107',
                             tension: 0.2,
                             yAxisID: 'y1'
-                        }
+                        },
+                        {
+                            label: 'Humedad (%)',
+                            data: graficoData.humedad,
+                            borderColor: '#20c997',
+                            backgroundColor: 'rgba(32,201,151,0.15)',
+                            tension: 0.2,
+                            yAxisID: 'y2'
+                        },
                     ]
                 },
                 options: {
@@ -112,10 +227,79 @@
                     maintainAspectRatio: false,
                     scales: {
                         y: { type: 'linear', display: true, position: 'left' },
-                        y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false } }
+                        y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false } },
+                        y2: {
+                                type: 'linear',
+                                display: false,
+                                position: 'right',
+                                grid: {
+                                    drawOnChartArea: false
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Humedad (%)'
+                                }
+                            }
+                    
                     }
                 }
             });
+        }
+
+        function actualizarEstado(ppm){
+
+            const estado=document.getElementById("estadoAire");
+            const mensaje=document.getElementById("mensajeEstado");
+
+            if(ppm<25){
+
+                estado.innerHTML="🟢 SEGURO";
+                estado.className="display-3 fw-bold text-success";
+                mensaje.className="alert alert-success mt-3";
+
+                mensaje.innerHTML=
+                "La calidad del aire es adecuada. No se requieren acciones.";
+
+            }
+            else if(ppm<50){
+
+                estado.innerHTML="🟡 PRECAUCIÓN";
+                estado.className="display-3 fw-bold text-warning";
+
+                mensaje.className="alert alert-warning mt-3";
+
+                mensaje.innerHTML=
+                "Se recomienda ventilar el ambiente y verificar el funcionamiento de los artefactos de calefacción.";
+
+            }
+            else if(ppm<100){
+
+                estado.innerHTML = "🟠 RIESGO";
+                estado.className = "display-3 fw-bold";
+                estado.style.color = "#fd7e14";
+
+                mensaje.className="alert alert-warning mt-3";
+
+                mensaje.innerHTML=
+                "Existe una concentración elevada de monóxido de carbono. Ventile inmediatamente el ambiente y abandónelo si aparecen síntomas.";
+
+                //enviarAlerta("RIESGO",ppm);
+
+            }
+            else{
+
+                estado.innerHTML="🔴 PELIGRO";
+                estado.className="display-3 fw-bold text-danger";
+
+                mensaje.className="alert alert-danger mt-3";
+
+                mensaje.innerHTML=
+                "PELIGRO. Concentre la atención en evacuar el ambiente, cortar el suministro de gas si es posible y contactar a los servicios de emergencia.";
+
+                //enviarAlerta("PELIGRO",ppm);
+
+            }
+
         }
 
         // Carga inicial

@@ -1,7 +1,7 @@
 from rest_framework import viewsets, generics
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Avg, Max, Count
+from django.db.models import Avg, Max, Count, Min
 from django.utils import timezone
 from datetime import timedelta
 from .models import Dispositivo, Medicion, Alerta, UmbralConfig
@@ -41,7 +41,18 @@ class AlertaViewSet(viewsets.ModelViewSet):
         alertas_filtradas = Alerta.objects.filter(fecha__gte=fecha_inicio)
 
         stats = mediciones_filtradas.aggregate(
+            # Temperatura
             avg_temperatura=Avg('temperatura'),
+            min_temperatura=Min('temperatura'),
+            max_temperatura=Max('temperatura'),
+
+            # Humedad
+            avg_humedad=Avg('humedad'),
+            min_humedad=Min('humedad'),
+            max_humedad=Max('humedad'),
+
+            # Gas
+            avg_gas=Avg('gas'),
             max_gas=Max('gas')
         )
         total_alertas = alertas_filtradas.count()
@@ -50,16 +61,33 @@ class AlertaViewSet(viewsets.ModelViewSet):
         historial = mediciones_filtradas.order_by('fecha')
         labels = [m.fecha.strftime('%d/%m %H:%M') for m in historial]
         data_temp = [m.temperatura for m in historial]
+        data_humedad = [m.humedad for m in historial]
         data_gas = [m.gas for m in historial]
 
         return Response({
             "periodo": periodo,
-            "avg_temperatura": round(stats['avg_temperatura'] or 0, 2),
-            "max_gas": round(stats['max_gas'] or 0, 2),
+            "temperatura": {
+                "promedio": round(stats["avg_temperatura"] or 0, 2),
+                "minima": round(stats["min_temperatura"] or 0, 2),
+                "maxima": round(stats["max_temperatura"] or 0, 2),
+            },
+
+            "humedad": {
+                "promedio": round(stats["avg_humedad"] or 0, 2),
+                "minima": round(stats["min_humedad"] or 0, 2),
+                "maxima": round(stats["max_humedad"] or 0, 2),
+            },
+
+            "gas": {
+                "promedio": round(stats["avg_gas"] or 0, 2),
+                "maximo": round(stats["max_gas"] or 0, 2),
+            },
+            
             "total_alertas": total_alertas,
             "grafico": {
                 "labels": labels,
                 "temperatura": data_temp,
+                "humedad": data_humedad,
                 "gas": data_gas
             }
         })
