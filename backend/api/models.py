@@ -1,7 +1,7 @@
 from django.db import models
 
 class Dispositivo(models.Model):
-    nombre = models.CharField(max_index=True, max_length=100)
+    nombre = models.CharField(db_index=True, max_length=100)
     ubicacion = models.CharField(max_length=150)
     estado = models.BooleanField(default=True) # True = Activo, False = Inactivo
 
