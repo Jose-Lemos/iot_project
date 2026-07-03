@@ -1,11 +1,17 @@
 import json
 import os
+import sys
 import paho.mqtt.client as mqtt
 import django
+
+# Agregamos el directorio actual y el padre al path de Python
+sys.path.append('/app')
+sys.path.append('/app/iot_project')
 
 # Inicializar Django para poder usar los Modelos fuera del servidor web
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'iot_project.settings')
 django.setup()
+
 
 from api.models import Medicion, Dispositivo, Alerta
 
