@@ -116,5 +116,5 @@ if __name__ == "__main__":
         max_delay=30
     )
 
-    #client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    #client.loop_forever()
+    client.connect(MQTT_BROKER, MQTT_PORT, 60)
+    client.loop_forever()
