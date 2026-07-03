@@ -59,7 +59,7 @@ MIDDLEWARE = [
 ]
 
 # Permitir todos los orígenes para la feria
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.1.45']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.0.22']
 CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'iot_project.urls'

@@ -11,11 +11,24 @@ from api.models import Medicion, Dispositivo, Alerta
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mosquitto")
 MQTT_PORT = 1883
-MQTT_TOPIC = "sensores/datos"
+#MQTT_TOPIC = "sensores/datos"
+TOPICS=[
+
+("sensores/datos",0),
+
+("sensores/estado",0),
+
+("sensores/config",0)
+
+]
+
+def on_disconnect(client, userdata, flags, rc, properties=None):
+    print(f"📡 Desconectado del broker MQTT")
 
 def on_connect(client, userdata, flags, rc, properties=None):
-    print(f"📡 Conectado al broker MQTT. Suscribiéndose a: {MQTT_TOPIC}")
-    client.subscribe(MQTT_TOPIC)
+    print(f"📡 Conectado al broker MQTT. Suscribiéndose a los temas: {TOPICS}")
+    for topic, qos in TOPICS:
+        client.subscribe(topic, qos)
 
 def on_message(client, userdata, msg):
     try:
@@ -30,22 +43,58 @@ def on_message(client, userdata, msg):
             defaults={"nombre": f"Sensor ESP8266-{payload['dispositivo_id']}", "ubicacion": "Feria de Ciencias"}
         )
 
+        gas = payload["gas"]
+
+        if gas <= 25:
+            riesgo = "Seguro"
+
+        elif gas <= 50:
+            riesgo = "Precaución"
+
+        elif gas <= 100:
+            riesgo = "Riesgo"
+            Alerta.objects.create(
+                tipo="Riesgo",
+                descripcion=f"Nivel elevado: {payload['gas']} ppm",
+                atendida=False
+            )
+
+        else:  #solo cuando el estado es de peligro, mandamos una alerta de tipo Peligro y además enviamos el mensaje por MQTT para activar el led y la alarma
+            riesgo = "Peligro"
+            Alerta.objects.create(
+                tipo="Peligro",
+                descripcion=f"Nivel crítico: {payload['gas']} ppm",
+                atendida=False
+            )
+            client.publish(
+                "control/alarma_led",
+                json.dumps({
+                    "estado": "PELIGRO",
+                    "led": {
+                        "color": "red",
+                        "parpadeo": True,
+                        "intervalo": 500
+                    },
+                    "buzzer": {
+                        "activo": True,
+                        "duracion": 10000
+                    },
+                    "display": {
+                        "mensaje": "PELIGRO\nVentilar"
+                    }
+                })
+            )
+
         # Guardar la medición
         Medicion.objects.create(
             temperatura=payload["temperatura"],
             humedad=payload["humedad"],
             gas=payload["gas"],
-            riesgo=payload["riesgo"],
+            riesgo=riesgo,
             sensor=dispositivo
         )
 
-        # Lógica de Alerta Automática (Ejemplo: Gas muy alto)
-        if payload["gas"] > 300: # Ajusta el umbral según tu sensor
-            Alerta.objects.create(
-                tipo="Fuga de Gas Detectada",
-                descripcion=f"El sensor {dispositivo.nombre} reportó niveles críticos de gas: {payload['gas']} ppm.",
-                atendida=False
-            )
+            
 
     except Exception as e:
         print(f"❌ Error al procesar mensaje MQTT: {e}")
@@ -54,6 +103,12 @@ if __name__ == "__main__":
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
     client.on_connect = on_connect
     client.on_message = on_message
+    client.on_disconnect = on_disconnect
 
-    client.connect(MQTT_BROKER, MQTT_PORT, 60)
-    client.loop_forever()
+    client.reconnect_delay_set(
+        min_delay=1,
+        max_delay=30
+    )
+
+    #client.connect(MQTT_BROKER, MQTT_PORT, 60)
+    #client.loop_forever()
