@@ -1,0 +1,18 @@
+# Entornos virtuales
+../venv/
+env/
+
+# Archivos de Python
+__pycache__/
+*.pyc
+
+# Base de datos local
+db.sqlite3
+pgdata/
+
+# Archivos de VS Code o IDEs
+.vscode/
+.idea/
+
+# Carpetas de Docker que no deben subirse
+.ipynb_checkpoints/

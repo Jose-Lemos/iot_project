@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PEA - Panel de Control IoT</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-light">
+
+    <div class="container my-4">
+        <header class="d-flex justify-content-between align-items-center pb-3 mb-4 border-bottom">
+            <h1 class="h3">📊 Monitoreo IoT - Feria de Ciencias</h1>
+            <div>
+                <select id="filtroPeriodo" class="form-select" onchange="cargarDatos()">
+                    <option value="diario" selected>Últimas 24 Horas (Diario)</option>
+                    <option value="semanal">Última Semana</option>
+                    <option value="mensual">Último Mes</option>
+                    <option value="anual">Último Año</option>
+                </select>
+            </div>
+        </header>
+
+        <div class="row g-4 mb-4">
+            <div class="col-md-4">
+                <div class="card text-white bg-primary h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Promedio Temperatura</h5>
+                        <h2 class="card-text" id="statTemp">0 °C</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-white bg-warning h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Máximo Gas Detectado</h5>
+                        <h2 class="card-text" id="statGas">0 ppm</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-white bg-danger h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">Alertas en el Período</h5>
+                        <h2 class="card-text" id="statAlertas">0</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card p-3 mb-4">
+            <h5 class="card-title mb-3">Historial de Mediciones</h5>
+            <div style="position: relative; height:40vh; width:100%">
+                <canvas id="iotChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:8000/api/alertas/estadisticas/";
+        let miGrafico = null;
+
+        async function cargarDatos() {
+            const periodo = document.getElementById("filtroPeriodo").value;
+            try {
+                const response = await fetch(`${API_URL}?periodo=${periodo}`);
+                const res = await response.json();
+
+                // Actualizar tarjetas
+                document.getElementById("statTemp").innerText = `${res.avg_temperatura} °C`;
+                document.getElementById("statGas").innerText = `${res.max_gas} ppm`;
+                document.getElementById("statAlertas").innerText = res.total_alertas;
+
+                // Dibujar o refrescar gráfico
+                renderChart(res.grafico);
+            } catch (error) {
+                console.error("Error cargando la API:", error);
+            }
+        }
+
+        function renderChart(graficoData) {
+            const ctx = document.getElementById('iotChart').getContext('2d');
+            
+            if (miGrafico) {
+                miGrafico.destroy(); // Destruir gráfico viejo para que no se superponga
+            }
+
+            miGrafico = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: graficoData.labels,
+                    datasets: [
+                        {
+                            label: 'Temperatura (°C)',
+                            data: graficoData.temperatura,
+                            borderColor: '#0d6efd',
+                            tension: 0.2,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Gas (ppm)',
+                            data: graficoData.gas,
+                            borderColor: '#ffc107',
+                            tension: 0.2,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { type: 'linear', display: true, position: 'left' },
+                        y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+        }
+
+        // Carga inicial
+        cargarDatos();
+        // Auto-refrescar cada 5 segundos para ver los cambios del ESP8266 en vivo
+        setInterval(cargarDatos, 5000);
+    </script>
+</body>
+</html>

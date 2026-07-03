@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # Base de Datos
+  postgres:
+    image: postgres:16-alpine
+    container_name: iot_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: iot_user
+      POSTGRES_PASSWORD: iot_password
+      POSTGRES_DB: iot_data
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Broker MQTT
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: iot_mosquitto
+    restart: always
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  # Backend Django
+  backend:
+    build: ./backend
+    container_name: iot_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - postgres
+      - mosquitto
+
+  # Worker MQTT (El que escucha al ESP8266 y guarda en DB)
+  mqtt_worker:
+    build: ./backend
+    container_name: iot_mqtt_worker
+    restart: always
+    command: python api/mqtt_listener.py
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - mosquitto
+      - postgres
+
+  # Frontend Nginx (Vital-Air)
+  frontend:
+    image: nginx:alpine
+    container_name: iot_frontend
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+
+volumes:
+  pgdata:
