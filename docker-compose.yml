@@ -38,15 +38,17 @@ services:
 
   # Worker MQTT (El que escucha al ESP8266 y guarda en DB)
   mqtt_worker:
-    build: ./backend
-    container_name: iot_mqtt_worker
-    restart: always
-    command: python api/mqtt_listener.py
-    volumes:
-      - ./backend:/app
-    depends_on:
-      - mosquitto
-      - postgres
+      build: ./backend
+      container_name: iot_mqtt_worker
+      restart: always
+      # Cambiamos el comando para que corra como módulo y desde la raíz
+      working_dir: /app
+      command: python -m api.mqtt_listener
+      volumes:
+        - ./backend:/app
+      depends_on:
+        - mosquitto
+        - postgres
 
   # Frontend Nginx (Vital-Air)
   frontend:
