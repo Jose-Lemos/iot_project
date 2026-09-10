@@ -20,6 +20,9 @@ services:
     restart: always
     ports:
       - "1883:1883"
+      - "9001:9001"
+    # Forzamos a que use el archivo de configuración y escuche en todas las interfaces
+    command: ["mosquitto", "-c", "/mosquitto/config/mosquitto.conf"]
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
 
@@ -41,9 +44,12 @@ services:
       build: ./backend
       container_name: iot_mqtt_worker
       restart: always
-      # Cambiamos el comando para que corra como módulo y desde la raíz
       working_dir: /app
-      command: python -m api.mqtt_listener
+      # Configuramos PYTHONPATH para que encuentre 'iot_project'
+      environment:
+        - PYTHONPATH=/app
+      # Ejecutamos el script de forma persistente
+      command: python api/mqtt_listener.py
       volumes:
         - ./backend:/app
       depends_on:

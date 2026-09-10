@@ -1,12 +1,14 @@
 import json
 import os
-import sys
+import traceback
+#import sys
 import paho.mqtt.client as mqtt
 import django
+#import traceback
 
 # Agregamos el directorio actual y el padre al path de Python
-sys.path.append('/app')
-sys.path.append('/app/iot_project')
+# sys.path.append('/app')
+# sys.path.append('/app/iot_project')
 
 # Inicializar Django para poder usar los Modelos fuera del servidor web
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'iot_project.settings')
@@ -37,11 +39,16 @@ def on_connect(client, userdata, flags, rc, properties=None):
         client.subscribe(topic, qos)
 
 def on_message(client, userdata, msg):
+    mensaje_crudo = msg.payload.decode('utf-8')
+    print(f"DEBUG: Tópico {msg.topic}, Mensaje crudo: '{mensaje_crudo}'")
     try:
         # El ESP8266 debe mandar un JSON como: 
         # {"dispositivo_id": 1, "temperatura": 24.5, "humedad": 60.0, "gas": 120.0, "riesgo": "Bajo"}
         payload = json.loads(msg.payload.decode())
+        print(f"Tópico: {msg.topic}")
+        print(f"Payload RAW: {msg.payload}")
         print(f"📥 Datos recibidos: {payload}")
+        print(payload.keys())
 
         # Buscar o crear el dispositivo por ID
         dispositivo, _ = Dispositivo.objects.get_or_create(
@@ -59,36 +66,39 @@ def on_message(client, userdata, msg):
 
         elif gas <= 100:
             riesgo = "Riesgo"
-            Alerta.objects.create(
-                tipo="Riesgo",
-                descripcion=f"Nivel elevado: {payload['gas']} ppm",
-                atendida=False
-            )
+            if not Alerta.objects.filter(tipo="Riesgo", atendida=False).exists():
+
+                Alerta.objects.create(
+                    tipo="Riesgo",
+                    descripcion=f"Nivel elevado: {payload['gas']} ppm",
+                    atendida=False
+                )
 
         else:  #solo cuando el estado es de peligro, mandamos una alerta de tipo Peligro y además enviamos el mensaje por MQTT para activar el led y la alarma
             riesgo = "Peligro"
-            Alerta.objects.create(
-                tipo="Peligro",
-                descripcion=f"Nivel crítico: {payload['gas']} ppm",
-                atendida=False
-            )
-            client.publish(
-                "control/alarma_led",
-                json.dumps({
-                    "estado": "PELIGRO",
-                    "led": {
-                        "color": "red",
-                        "parpadeo": True,
-                        "intervalo": 500
-                    },
-                    "buzzer": {
-                        "activo": True,
-                        "duracion": 10000
-                    },
-                    "display": {
-                        "mensaje": "PELIGRO\nVentilar"
-                    }
-                })
+            if not Alerta.objects.filter(tipo="Peligro", atendida=False).exists():
+                Alerta.objects.create(
+                    tipo="Peligro",
+                    descripcion=f"Nivel crítico: {payload['gas']} ppm",
+                    atendida=False
+                )
+                client.publish(
+                    "control/alarma_led",
+                    json.dumps({
+                        "estado": "PELIGRO",
+                        "led": {
+                            "color": "red",
+                            "parpadeo": True,
+                            "intervalo": 500
+                        },
+                        "buzzer": {
+                            "activo": True,
+                            "duracion": 10000
+                        },
+                        "display": {
+                            "mensaje": "PELIGRO\nVentilar"
+                        }
+                    })
             )
 
         # Guardar la medición
@@ -104,6 +114,7 @@ def on_message(client, userdata, msg):
 
     except Exception as e:
         print(f"❌ Error al procesar mensaje MQTT: {e}")
+        traceback.print_exc()
 
 if __name__ == "__main__":
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
