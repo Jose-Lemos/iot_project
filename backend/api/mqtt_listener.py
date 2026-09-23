@@ -1,6 +1,7 @@
 import json
 import os
 import traceback
+import re
 #import sys
 import paho.mqtt.client as mqtt
 import django
@@ -15,7 +16,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'iot_project.settings')
 django.setup()
 
 
-from api.models import Medicion, Dispositivo, Alerta
+from api.models import Medicion, Dispositivo, Alerta, UmbralConfig
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mosquitto")
 MQTT_PORT = 1883
@@ -44,7 +45,8 @@ def on_message(client, userdata, msg):
     try:
         # El ESP8266 debe mandar un JSON como: 
         # {"dispositivo_id": 1, "temperatura": 24.5, "humedad": 60.0, "gas": 120.0, "riesgo": "Bajo"}
-        payload = json.loads(msg.payload.decode())
+        json_limpio = re.sub(r'(\w+):', r'"\1":', mensaje_crudo)
+        payload = json.loads(json_limpio)
         print(f"Tópico: {msg.topic}")
         print(f"Payload RAW: {msg.payload}")
         print(f"📥 Datos recibidos: {payload}")
@@ -53,10 +55,17 @@ def on_message(client, userdata, msg):
         # Buscar o crear el dispositivo por ID
         dispositivo, _ = Dispositivo.objects.get_or_create(
             id=payload["dispositivo_id"],
-            defaults={"nombre": f"Sensor ESP8266-{payload['dispositivo_id']}", "ubicacion": "Feria de Ciencias"}
+            defaults={"nombre": f"Sensor Vital Air-{payload['dispositivo_id']}", "ubicacion": "Feria de Ciencias"}
         )
 
-        gas = payload["gas"]
+        temperatura = payload.get("temperatura", 0.0)
+        humedad = payload.get("humedad", 0.0)
+        gas = payload.get("gas", 0.0)
+        
+        # 3. Obtener los umbrales configurados (o usar los valores por defecto si no existen)
+        config, _ = UmbralConfig.objects.get_or_create(pk=1)
+
+        gas = payload.get("gas", 0.0)
 
         if gas <= 25:
             riesgo = "Seguro"
