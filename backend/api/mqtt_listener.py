@@ -1,140 +1,223 @@
 import json
+import math
 import os
 import traceback
 import re
-#import sys
-import paho.mqtt.client as mqtt
 import django
-#import traceback
+import paho.mqtt.client as mqtt
+from django.db import transaction
+import requests
 
-# Agregamos el directorio actual y el padre al path de Python
-# sys.path.append('/app')
-# sys.path.append('/app/iot_project')
-
-# Inicializar Django para poder usar los Modelos fuera del servidor web
+# Inicializar Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'iot_project.settings')
 django.setup()
-
 
 from api.models import Medicion, Dispositivo, Alerta, UmbralConfig
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mosquitto")
-MQTT_PORT = 1883
-#MQTT_TOPIC = "sensores/datos"
-TOPICS=[
+MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+TELEGRAM_TIMEOUT = 10
 
-("sensores/datos",0),
-
-("sensores/estado",0),
-
-("sensores/config",0)
-
+TOPICS = [
+    ("sensores/datos", 0),
+    ("sensores/estado", 0),
+    ("sensores/config", 0),
+    ("control/temperatura", 0),
+    ("control/humedad", 0),
+    ("control/co", 0),
+    ("control/gas", 0),
 ]
 
-def on_disconnect(client, userdata, flags, rc, properties=None):
-    print(f"📡 Desconectado del broker MQTT")
+SENSOR_TOPICS = {
+    "control/temperatura": "temperatura",
+    "control/humedad": "humedad",
+    "control/co": "co",
+    "control/gas": "gas",
+}
 
-def on_connect(client, userdata, flags, rc, properties=None):
-    print(f"📡 Conectado al broker MQTT. Suscribiéndose a los temas: {TOPICS}")
-    for topic, qos in TOPICS:
-        client.subscribe(topic, qos)
 
-def on_message(client, userdata, msg):
-    mensaje_crudo = msg.payload.decode('utf-8')
-    print(f"DEBUG: Tópico {msg.topic}, Mensaje crudo: '{mensaje_crudo}'")
+def enviar_alerta_telegram(mensaje):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("ℹ️ Telegram no configurado; se omite la notificación.")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": f"🚨 ALERTA DE SISTEMA EMBEBIDO 🚨\n\n{mensaje}",
+    }
     try:
-        # El ESP8266 debe mandar un JSON como: 
-        # {"dispositivo_id": 1, "temperatura": 24.5, "humedad": 60.0, "gas": 120.0, "riesgo": "Bajo"}
-        json_limpio = re.sub(r'(\w+):', r'"\1":', mensaje_crudo)
-        payload = json.loads(json_limpio)
-        print(f"Tópico: {msg.topic}")
-        print(f"Payload RAW: {msg.payload}")
-        print(f"📥 Datos recibidos: {payload}")
-        print(payload.keys())
+        response = requests.post(url, json=payload, timeout=TELEGRAM_TIMEOUT)
+        response.raise_for_status()
+    except requests.RequestException as error:
+        print(f"❌ Error al enviar alerta por Telegram: {error}")
 
-        # Buscar o crear el dispositivo por ID
+
+def _parse_payload(raw_payload):
+    try:
+        payload = json.loads(raw_payload)
+    except json.JSONDecodeError:
+        # Some firmware versions send JSON object keys without quotes.
+        json_limpio = re.sub(
+            r'([{,]\s*)([A-Za-z_]\w*)(\s*:)', r'\1"\2"\3', raw_payload
+        )
+        payload = json.loads(json_limpio)
+    if not isinstance(payload, dict):
+        raise ValueError("El mensaje MQTT debe ser un objeto JSON")
+    return payload
+
+
+def _number(payload, *keys, default=None):
+    value = next((payload[key] for key in keys if key in payload), default)
+    if value is None or isinstance(value, bool):
+        raise ValueError(f"Falta un valor numérico válido para {keys[0]}")
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError(f"El valor de {keys[0]} debe ser finito")
+    return value
+
+
+def _save_measurement(client, payload):
+    dispositivo_id = payload.get("dispositivo_id", payload.get("id", 1))
+    if isinstance(dispositivo_id, bool):
+        raise ValueError("El identificador del dispositivo no es válido")
+    dispositivo_id = int(dispositivo_id)
+    if dispositivo_id < 1:
+        raise ValueError("El identificador del dispositivo debe ser positivo")
+
+    temperatura = _number(payload, "temperatura", "temperature")
+    humedad = _number(payload, "humedad", "humidity")
+    gas = _number(payload, "gas", "mq2", default=0.0)
+    co_nivel = _number(payload, "CO", "co", "mq7", default=0.0)
+    if gas < 0 or co_nivel < 0:
+        raise ValueError("Las lecturas de gas y CO no pueden ser negativas")
+    if not 0 <= humedad <= 100:
+        raise ValueError("La humedad debe estar entre 0 y 100")
+
+    with transaction.atomic():
         dispositivo, _ = Dispositivo.objects.get_or_create(
-            id=payload["dispositivo_id"],
-            defaults={"nombre": f"Sensor Vital Air-{payload['dispositivo_id']}", "ubicacion": "Feria de Ciencias"}
+            id=dispositivo_id,
+            defaults={
+                "nombre": f"Sensor Vital Air-{dispositivo_id}",
+                "ubicacion": "Feria de Ciencias"
+            }
         )
 
-        temperatura = payload.get("temperatura", 0.0)
-        humedad = payload.get("humedad", 0.0)
-        gas = payload.get("gas", 0.0)
-        
-        # 3. Obtener los umbrales configurados (o usar los valores por defecto si no existen)
         config, _ = UmbralConfig.objects.get_or_create(pk=1)
+        max_contaminante = max(gas, co_nivel)
 
-        gas = payload.get("gas", 0.0)
-
-        if gas <= 25:
+        if max_contaminante <= 25:
             riesgo = "Seguro"
-
-        elif gas <= 50:
+        elif max_contaminante <= 50:
             riesgo = "Precaución"
-
-        elif gas <= 100:
+        elif max_contaminante <= config.gas_max:
             riesgo = "Riesgo"
             if not Alerta.objects.filter(tipo="Riesgo", atendida=False).exists():
-
                 Alerta.objects.create(
                     tipo="Riesgo",
-                    descripcion=f"Nivel elevado: {payload['gas']} ppm",
+                    descripcion=f"Nivel elevado - Gas: {gas} ppm | CO: {co_nivel} ppm",
                     atendida=False
                 )
-
-        else:  #solo cuando el estado es de peligro, mandamos una alerta de tipo Peligro y además enviamos el mensaje por MQTT para activar el led y la alarma
+        else:
             riesgo = "Peligro"
             if not Alerta.objects.filter(tipo="Peligro", atendida=False).exists():
+                descripcion_alerta = (
+                    f"Nivel crítico - Gas: {gas} ppm | CO: {co_nivel} ppm"
+                )
                 Alerta.objects.create(
                     tipo="Peligro",
-                    descripcion=f"Nivel crítico: {payload['gas']} ppm",
+                    descripcion=descripcion_alerta,
                     atendida=False
                 )
+                enviar_alerta_telegram(descripcion_alerta)
                 client.publish(
                     "control/alarma_led",
                     json.dumps({
                         "estado": "PELIGRO",
-                        "led": {
-                            "color": "red",
-                            "parpadeo": True,
-                            "intervalo": 500
-                        },
-                        "buzzer": {
-                            "activo": True,
-                            "duracion": 10000
-                        },
-                        "display": {
-                            "mensaje": "PELIGRO\nVentilar"
-                        }
+                        "led": {"color": "red", "parpadeo": True, "intervalo": 500},
+                        "buzzer": {"activo": True, "duracion": 10000},
+                        "display": {"mensaje": "PELIGRO\nVentilar"}
                     })
-            )
+                )
 
-        # Guardar la medición
-        Medicion.objects.create(
-            temperatura=payload["temperatura"],
-            humedad=payload["humedad"],
-            gas=payload["gas"],
+        medicion = Medicion.objects.create(
+            temperatura=temperatura,
+            humedad=humedad,
+            gas=gas,
+            co=co_nivel,
             riesgo=riesgo,
             sensor=dispositivo
         )
+    print(f"✅ Medición guardada exitosamente [ID: {medicion.id}] - Riesgo: {riesgo}")
 
-            
+
+# --- Callbacks compatibles con Paho MQTT VERSION2 ---
+
+def on_connect(client, userdata, flags, reason_code, properties=None):
+    if reason_code == 0:
+        print(f"📡 Conectado exitosamente al broker MQTT. Suscribiéndose a: {TOPICS}")
+        for topic, qos in TOPICS:
+            client.subscribe(topic, qos)
+    else:
+        print(f"❌ Error al conectar con el broker. Código: {reason_code}")
+
+def on_disconnect(client, userdata, flags, reason_code, properties=None):
+    print(f"⚠️ Desconectado del broker MQTT (Código: {reason_code}). Intentando reconectar...")
+
+def on_message(client, userdata, msg):
+    if msg.topic in SENSOR_TOPICS:
+        try:
+            readings = getattr(client, "_sensor_readings", {})
+            field = SENSOR_TOPICS[msg.topic]
+            value = float(msg.payload.decode("utf-8"))
+            if not math.isfinite(value):
+                raise ValueError(f"El valor de {field} debe ser finito")
+            readings[field] = value
+
+            if field == "gas":
+                client._sensor_readings = {}
+                if not all(key in readings for key in ("temperatura", "humedad", "co", "gas")):
+                    print("ℹ️ Ciclo de sensores incompleto; no se guarda la medición.")
+                    return
+                _save_measurement(client, readings)
+            else:
+                client._sensor_readings = readings
+        except Exception as e:
+            if msg.topic == "control/gas":
+                client._sensor_readings = {}
+            print(f"❌ Error al procesar lectura MQTT de {msg.topic}: {e}")
+            traceback.print_exc()
+        return
+
+    if msg.topic != "sensores/datos":
+        print(f"ℹ️ Mensaje ignorado en tópico no destinado a mediciones: {msg.topic}")
+        return
+
+    try:
+        mensaje_crudo = msg.payload.decode('utf-8')
+        print(f"DEBUG: Tópico {msg.topic}, Mensaje crudo: '{mensaje_crudo}'")
+        payload = _parse_payload(mensaje_crudo)
+        print(f"📥 Datos decodificados: {payload}")
+        _save_measurement(client, payload)
 
     except Exception as e:
         print(f"❌ Error al procesar mensaje MQTT: {e}")
         traceback.print_exc()
 
+# --- Punto de entrada del Script ---
 if __name__ == "__main__":
-    client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
+    client = mqtt.Client(
+        callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+        client_id="iot_worker_listener"
+    )
     client.on_connect = on_connect
     client.on_message = on_message
     client.on_disconnect = on_disconnect
 
-    client.reconnect_delay_set(
-        min_delay=1,
-        max_delay=30
-    )
+    client.reconnect_delay_set(min_delay=1, max_delay=30)
 
+    print(f"Connecting to MQTT Broker in {MQTT_BROKER}:{MQTT_PORT}...")
     client.connect(MQTT_BROKER, MQTT_PORT, 60)
     client.loop_forever()

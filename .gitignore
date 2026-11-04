@@ -1,6 +1,9 @@
 # Entornos virtuales
-../venv/
+/venv/
+.venv/
 env/
+.env
+telegram_bot.env
 
 # Archivos de Python
 __pycache__/

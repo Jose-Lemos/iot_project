@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -45,6 +46,8 @@ INSTALLED_APPS = [
     # Aplicaciones locales
     'api',
 ]
+
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', # Debe ir arriba de todo
@@ -85,17 +88,25 @@ WSGI_APPLICATION = 'iot_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-# Configuración de Base de Datos
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'iot_data',            # Nombre de la DB definida en docker-compose
-        'USER': 'iot_user',            # Usuario definido en docker-compose
-        'PASSWORD': 'iot_password',    # Password definido en docker-compose
-        'HOST': 'postgres',            # Nombre del servicio en docker-compose
-        'PORT': '5432',
+# SQLite permite ejecutar el backend localmente sin depender de Docker.
+if os.getenv('DB_ENGINE', 'sqlite').lower() == 'postgresql':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', 'iot_data'),
+            'USER': os.getenv('DB_USER', 'iot_user'),
+            'PASSWORD': os.getenv('DB_PASSWORD', 'iot_password'),
+            'HOST': os.getenv('DB_HOST', 'postgres'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -132,3 +143,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+EMAIL_BACKEND = 'django.core.mail.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')

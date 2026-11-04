@@ -13,6 +13,7 @@ class Medicion(models.Model):
     temperatura = models.FloatField()
     humedad = models.FloatField()
     gas = models.FloatField()
+    co = models.FloatField(default=0.0)
     riesgo = models.CharField(max_length=50) # Ejemplo: "Bajo", "Alto"
     sensor = models.ForeignKey(Dispositivo, on_delete=models.CASCADE, related_name='mediciones')
 
@@ -24,7 +25,7 @@ class Alerta(models.Model):
 
 class UmbralConfig(models.Model):
     temp_max = models.FloatField(default=35.0)
-    gas_max = models.FloatField(default=300.0)
+    gas_max = models.FloatField(default=200.0)
     humedad_min = models.FloatField(default=20.0)
 
     def save(self, *args, **kwargs):

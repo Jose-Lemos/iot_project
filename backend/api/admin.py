@@ -9,7 +9,7 @@ class DispositivoAdmin(admin.ModelAdmin):
 
 @admin.register(Medicion)
 class MedicionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'sensor', 'temperatura', 'humedad', 'gas', 'riesgo', 'fecha')
+    list_display = ('id', 'sensor', 'temperatura', 'humedad', 'gas', 'co', 'riesgo', 'fecha')
     list_filter = ('riesgo', 'sensor', 'fecha')
     search_fields = ('sensor__nombre',)
 
