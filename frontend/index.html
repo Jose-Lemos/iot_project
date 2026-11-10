@@ -1,311 +1,191 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VitalAir - Panel de Control IoT</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VitalAir | Dashboard IoT</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="./css/styles.css" />
 </head>
-<body class="bg-light">
-
-    <div class="container my-4">
-        <header class="d-flex justify-content-between align-items-center pb-3 mb-4 border-bottom">
-            <h1 class="h3">📊 Monitoreo IoT Vital Air - Feria de Ciencias</h1>
-            <div>
-                <select id="filtroPeriodo" class="form-select" onchange="cargarDatos()">
-                    <option value="diario" selected>Últimas 24 Horas (Diario)</option>
-                    <option value="semanal">Última Semana</option>
-                    <option value="mensual">Último Mes</option>
-                    <option value="anual">Último Año</option>
-                </select>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-mark">✦</div>
+                <h2>VitalAir</h2>
             </div>
-        </header>
 
-        <div class="card mb-4 shadow">
-            <div class="card-body text-center">
+            <div class="nav-section-title">Navegación</div>
+            <button class="nav-btn active" data-view="home">
+                <span>🏠 Inicio</span>
+                <small>Vista</small>
+            </button>
+            <button class="nav-btn" data-view="mediciones">
+                <span>📈 Mediciones</span>
+                <small>Live</small>
+            </button>
+            <button class="nav-btn" data-view="alertas">
+                <span>🚨 Alertas</span>
+                <small>Eventos</small>
+            </button>
+            <button class="nav-btn" data-view="configuracion">
+                <span>⚙️ Configuración</span>
+                <small>Ajustes</small>
+            </button>
+        </aside>
 
-                <h3 class="mb-3">
-                    Estado Actual del Aire
-                </h3>
+        <main class="content">
+            <header class="topbar">
+                <h1>Dashboard de monitoreo</h1>
+                <div class="filter-wrap">
+                    <label for="filtroPeriodo">Periodo</label>
+                    <select id="filtroPeriodo" class="form-select form-select-sm" >
+                        <option value="diario" selected>24h</option>
+                        <option value="semanal">Semana</option>
+                        <option value="mensual">Mes</option>
+                        <option value="anual">Año</option>
+                    </select>
+                </div>
+            </header>
 
-                <div id="estadoAire"
-                    class="display-3 fw-bold text-success">
-
-                    🟢 SEGURO
-
+            <section id="home" class="page active">
+                <div class="hero">
+                    <h2>Monitoreo inteligente del ambiente</h2>
+                    <p>Supervisá la temperatura, humedad y niveles de gases en tiempo real para detectar riesgos antes de que se conviertan en incidentes.</p>
+                    <div class="status-pill"><span class="dot"></span> Sistema operativo</div>
                 </div>
 
-                <p class="lead mt-3">
-                    Monóxido de Carbono actual:
-                    <strong id="valorActualGas">0 ppm</strong>
-                </p>
-
-            </div>
-
-            <div class="alert mt-3 text-center fw-bold" id="mensajeEstado">
-
-                El ambiente presenta condiciones normales.
-
-            </div>
-        </div>
-
-        <div class="row g-4 mb-4">
-            <!-- Temperatura -->
-            <div class="col-md-4">
-                <div class="card h-100 border-primary shadow">
-                    <div class="card-header bg-primary text-white">
-                        🌡 Temperatura
+                <div class="grid-cards">
+                    <div class="metric-card">
+                        <div class="label"><span>Temperatura</span><span>🌡</span></div>
+                        <p class="value" id="tempProm">0 °C</p>
+                        <div class="sub">Promedio del período</div>
                     </div>
 
-                    <div class="card-body">
-                        <p>Promedio:
-                            <strong id="tempProm">0 °C</strong>
-                        </p>
+                    <div class="metric-card">
+                        <div class="label"><span>Humedad</span><span>💧</span></div>
+                        <p class="value" id="humProm">0 %</p>
+                        <div class="sub">Promedio del período</div>
+                    </div>
 
-                        <p>Mínima:
-                            <strong id="tempMin">0 °C</strong>
-                        </p>
+                    <div class="metric-card">
+                        <div class="label"><span>Gas</span><span>☣</span></div>
+                        <p class="value" id="gasProm">0 ppm</p>
+                        <div class="sub">Promedio de CO</div>
+                    </div>
 
-                        <p>Máxima:
-                            <strong id="tempMax">0 °C</strong>
-                        </p>
+                    <div class="metric-card">
+                        <div class="label"><span>Alertas</span><span>🚨</span></div>
+                        <p class="value" id="statAlertas">0</p>
+                        <div class="sub">Eventos registrados</div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Humedad -->
-            <div class="col-md-4">
-                <div class="card h-100 border-info shadow">
-                    <div class="card-header bg-info text-white">
-                        💧 Humedad
-                    </div>
-
-                    <div class="card-body">
-                        <p>Promedio:
-                            <strong id="humProm">0 %</strong>
-                        </p>
-
-                        <p>Mínima:
-                            <strong id="humMin">0 %</strong>
-                        </p>
-
-                        <p>Máxima:
-                            <strong id="humMax">0 %</strong>
-                        </p>
+                <div class="card-panel">
+                    <h3 class="section-title">Estado actual del ambiente</h3>
+                    <div class="current-status" id="statusHome">
+                        <div>
+                            <p class="estado" id="estadoAire">🟢 SEGURO</p>
+                            <p class="mensaje" id="mensajeEstado">El ambiente presenta condiciones normales.</p>
+                        </div>
+                        <div class="text-end">
+                            <div class="text-muted small">Monóxido de carbono actual</div>
+                            <h3 class="mb-0" id="valorActualGas">0 ppm</h3>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Monóxido de Carbono -->
-            <div class="col-md-4">
-                <div class="card h-100 border-warning shadow">
-                    <div class="card-header bg-warning">
-                        ☣ Monóxido de Carbono
-                    </div>
-
-                    <div class="card-body">
-                        <p>Promedio:
-                            <strong id="gasProm">0 ppm</strong>
-                        </p>
-
-                        <p>Máximo:
-                            <strong id="gasMax">0 ppm</strong>
-                        </p>
-
-                        <p>Alertas:
-                            <strong id="statAlertas">0</strong>
-                        </p>
+            <section id="mediciones" class="page">
+                <div class="card-panel mb-4">
+                    <h3 class="section-title">Mediciones en vivo</h3>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <div class="metric-card h-100">
+                                <div class="label"><span>Temperatura</span><span>🌡</span></div>
+                                <p class="value" id="medTemp">0 °C</p>
+                                <div class="sub">Última lectura</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card h-100">
+                                <div class="label"><span>Humedad</span><span>💧</span></div>
+                                <p class="value" id="medHum">0 %</p>
+                                <div class="sub">Última lectura</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card h-100">
+                                <div class="label"><span>Gas</span><span>☣</span></div>
+                                <p class="value" id="medGas">0 ppm</p>
+                                <div class="sub">Última lectura</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card h-100">
+                                <div class="label"><span>Monóxido de carbono (CO)</span><span>⚠</span></div>
+                                <p class="value" id="medCo">0 ppm</p>
+                                <div class="sub">Última lectura</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card h-100">
+                                <div class="label"><span>Riesgo</span><span>⚠</span></div>
+                                <p class="value" id="medRiesgo">-</p>
+                                <div class="sub">Estado actual</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <div class="card p-3 mb-4">
-            <h5 class="card-title mb-3">Historial de Mediciones</h5>
-            <div style="position: relative; height:40vh; width:100%">
-                <canvas id="iotChart"></canvas>
-            </div>
-        </div>
+                <div class="card-panel mb-4">
+                    <h3 class="section-title">Historial</h3>
+                    <div class="chart-wrap">
+                        <canvas id="iotChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card-panel">
+                    <h3 class="section-title">Últimas mediciones</h3>
+                    <div id="emptyMediciones" class="empty-state">Todavía no hay mediciones registradas.</div>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Temperatura</th>
+                                    <th>Humedad</th>
+                                    <th>Gas</th>
+                                    <th>CO</th>
+                                    <th>Riesgo</th>
+                                    <th>Sensor</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaMediciones"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="alertas" class="page">
+                <div class="card-panel">
+                    <h3 class="section-title">Resumen de alertas</h3>
+                    <p class="text-muted">Se muestran las alertas registradas en el período seleccionado.</p>
+                    <div id="listaAlertas" class="mt-3">Cargando alertas...</div>
+                </div>
+            </section>
+
+            <section id="configuracion" class="page">
+                <div class="card-panel">
+                    <h3 class="section-title">Configuración</h3>
+                    <p class="text-muted mb-4">Ajustá los parámetros de operación para controlar los límites de seguridad del sistema.</p>
+                    <div id="configUmbrales" class="row g-3">Cargando configuración...</div>
+                </div>
+            </section>
+        </main>
     </div>
 
-    <script>
-        const API_URL = "http://localhost:8000/api/alertas/estadisticas/";
-        let miGrafico = null;
-
-        async function cargarDatos() {
-            const periodo = document.getElementById("filtroPeriodo").value;
-            try {
-                const response = await fetch(`${API_URL}?periodo=${periodo}`);
-                const res = await response.json();
-
-                // Actualizar tarjetas
-                //temperatura promedio, mínima y máxima
-                document.getElementById("tempProm").innerHTML =
-                res.temperatura.promedio + " °C";
-
-                document.getElementById("tempMin").innerHTML =
-                res.temperatura.minima + " °C";
-
-                document.getElementById("tempMax").innerHTML =
-                res.temperatura.maxima + " °C";
-
-                // humedad promedio, mínima y máxima
-                document.getElementById("humProm").innerHTML =
-                res.humedad.promedio + " %";
-
-                document.getElementById("humMin").innerHTML =
-                res.humedad.minima + " %";
-
-                document.getElementById("humMax").innerHTML =
-                res.humedad.maxima + " %";
-
-                // gas promedio y máxima
-                document.getElementById("gasProm").innerHTML =
-                res.gas.promedio + " ppm";
-
-                document.getElementById("gasMax").innerHTML =
-                res.gas.maximo + " ppm";
-
-                // Dibujar o refrescar gráfico
-                renderChart(res.grafico);
-
-                // Obtener la última medición de CO
-                const gasActual = res.grafico.gas.length > 0
-                    ? res.grafico.gas[res.grafico.gas.length - 1]
-                    : 0;
-
-                // Mostrar el valor actual
-                document.getElementById("valorActualGas").innerHTML =
-                    `${gasActual} ppm`;
-
-                // Actualizar el estado visual
-                actualizarEstado(gasActual);
-            } catch (error) {
-                console.error("Error cargando la API:", error);
-            }
-        }
-
-        function renderChart(graficoData) {
-            const ctx = document.getElementById('iotChart').getContext('2d');
-            
-            if (miGrafico) {
-                miGrafico.destroy(); // Destruir gráfico viejo para que no se superponga
-            }
-
-            miGrafico = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: graficoData.labels,
-                    datasets: [
-                        {
-                            label: 'Temperatura (°C)',
-                            data: graficoData.temperatura,
-                            borderColor: '#0d6efd',
-                            tension: 0.2,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'Gas (ppm)',
-                            data: graficoData.gas,
-                            borderColor: '#ffc107',
-                            tension: 0.2,
-                            yAxisID: 'y1'
-                        },
-                        {
-                            label: 'Humedad (%)',
-                            data: graficoData.humedad,
-                            borderColor: '#20c997',
-                            backgroundColor: 'rgba(32,201,151,0.15)',
-                            tension: 0.2,
-                            yAxisID: 'y2'
-                        },
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: { type: 'linear', display: true, position: 'left' },
-                        y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false } },
-                        y2: {
-                                type: 'linear',
-                                display: false,
-                                position: 'right',
-                                grid: {
-                                    drawOnChartArea: false
-                                },
-                                title: {
-                                    display: true,
-                                    text: 'Humedad (%)'
-                                }
-                            }
-                    
-                    }
-                }
-            });
-        }
-
-        function actualizarEstado(ppm){
-
-            const estado=document.getElementById("estadoAire");
-            const mensaje=document.getElementById("mensajeEstado");
-
-            if(ppm<25){
-
-                estado.innerHTML="🟢 SEGURO";
-                estado.className="display-3 fw-bold text-success";
-                mensaje.className="alert alert-success mt-3";
-
-                mensaje.innerHTML=
-                "La calidad del aire es adecuada. No se requieren acciones.";
-
-            }
-            else if(ppm<50){
-
-                estado.innerHTML="🟡 PRECAUCIÓN";
-                estado.className="display-3 fw-bold text-warning";
-
-                mensaje.className="alert alert-warning mt-3";
-
-                mensaje.innerHTML=
-                "Se recomienda ventilar el ambiente y verificar el funcionamiento de los artefactos de calefacción.";
-
-            }
-            else if(ppm<100){
-
-                estado.innerHTML = "🟠 RIESGO";
-                estado.className = "display-3 fw-bold";
-                estado.style.color = "#fd7e14";
-
-                mensaje.className="alert alert-warning mt-3";
-
-                mensaje.innerHTML=
-                "Existe una concentración elevada de monóxido de carbono. Ventile inmediatamente el ambiente y abandónelo si aparecen síntomas.";
-
-                //enviarAlerta("RIESGO",ppm);
-
-            }
-            else{
-
-                estado.innerHTML="🔴 PELIGRO";
-                estado.className="display-3 fw-bold text-danger";
-
-                mensaje.className="alert alert-danger mt-3";
-
-                mensaje.innerHTML=
-                "PELIGRO. Concentre la atención en evacuar el ambiente, cortar el suministro de gas si es posible y contactar a los servicios de emergencia.";
-
-                //enviarAlerta("PELIGRO",ppm);
-
-            }
-
-        }
-
-        // Carga inicial
-        cargarDatos();
-        // Auto-refrescar cada 5 segundos para ver los cambios del ESP8266 en vivo
-        setInterval(cargarDatos, 5000);
-    </script>
+    <script type="module" src="./js/main.js"></script>
 </body>
 </html>

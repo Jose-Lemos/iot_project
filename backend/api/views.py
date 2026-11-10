@@ -63,6 +63,7 @@ class AlertaViewSet(viewsets.ModelViewSet):
         data_temp = [m.temperatura for m in historial]
         data_humedad = [m.humedad for m in historial]
         data_gas = [m.gas for m in historial]
+        data_co = [m.co for m in historial]
 
         return Response({
             "periodo": periodo,
@@ -88,7 +89,8 @@ class AlertaViewSet(viewsets.ModelViewSet):
                 "labels": labels,
                 "temperatura": data_temp,
                 "humedad": data_humedad,
-                "gas": data_gas
+                "gas": data_gas,
+                "co": data_co
             }
         })
 

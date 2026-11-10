@@ -8,11 +8,6 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Instalamos dependencias del sistema necesarias para compilar librerías
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
 
 # Actualizamos pip antes de instalar nada
 RUN pip install --upgrade pip

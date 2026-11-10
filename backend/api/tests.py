@@ -1,9 +1,31 @@
 from django.test import TestCase
+from rest_framework.test import APITestCase
 from unittest.mock import patch
 from types import SimpleNamespace
 
 from .models import Alerta, Dispositivo, Medicion, UmbralConfig
 from .mqtt_listener import on_message
+
+
+class MeasurementStatisticsTests(APITestCase):
+	def test_statistics_include_co_in_chart_data(self):
+		dispositivo = Dispositivo.objects.create(
+			nombre="Sensor de prueba",
+			ubicacion="Laboratorio",
+		)
+		Medicion.objects.create(
+			sensor=dispositivo,
+			temperatura=24.5,
+			humedad=48,
+			gas=12,
+			co=3,
+			riesgo="Bajo",
+		)
+
+		response = self.client.get("/api/alertas/estadisticas/")
+
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.data["grafico"]["co"], [3])
 
 
 class MQTTListenerTests(TestCase):
