@@ -28,6 +28,7 @@ TOPICS = [
     ("control/humedad", 0),
     ("control/co", 0),
     ("control/gas", 0),
+    ("control/estado", 0),
 ]
 
 SENSOR_TOPICS = {
@@ -38,7 +39,7 @@ SENSOR_TOPICS = {
 }
 
 
-def enviar_alerta_telegram(mensaje):
+def enviar_alerta_telegram(mensaje, titulo="🚨 ALERTA DE SISTEMA EMBEBIDO 🚨"):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("ℹ️ Telegram no configurado; se omite la notificación.")
         return
@@ -46,7 +47,7 @@ def enviar_alerta_telegram(mensaje):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": f"🚨 ALERTA DE SISTEMA EMBEBIDO 🚨\n\n{mensaje}",
+        "text": f"{titulo}\n\n{mensaje}",
     }
     try:
         response = requests.post(url, json=payload, timeout=TELEGRAM_TIMEOUT)
@@ -79,6 +80,37 @@ def _number(payload, *keys, default=None):
     return value
 
 
+def _registrar_alerta_contaminante(client, nombre, valor, umbral, tipo_peligro):
+    if valor <= 50:
+        return False
+
+    es_peligro = valor > umbral
+    tipo = tipo_peligro if es_peligro else (
+        "Riesgo" if nombre == "Gas" else "Riesgo - Monóxido"
+    )
+    if Alerta.objects.filter(tipo=tipo, atendida=False).exists():
+        return False
+
+    descripcion = f"Nivel {'crítico' if es_peligro else 'elevado'} - {nombre}: {valor} ppm"
+    Alerta.objects.create(tipo=tipo, descripcion=descripcion, atendida=False)
+
+    if es_peligro or nombre == "Monóxido de carbono":
+        enviar_alerta_telegram(descripcion)
+
+    if es_peligro:
+        client.publish(
+            "control/alarma_led",
+            json.dumps({
+                "estado": "PELIGRO",
+                "led": {"color": "red", "parpadeo": True, "intervalo": 500},
+                "buzzer": {"activo": True, "duracion": 10000},
+                "display": {"mensaje": "PELIGRO\nVentilar"}
+            })
+        )
+        return True
+    return False
+
+
 def _save_measurement(client, payload):
     dispositivo_id = payload.get("dispositivo_id", payload.get("id", 1))
     if isinstance(dispositivo_id, bool):
@@ -96,6 +128,13 @@ def _save_measurement(client, payload):
     if not 0 <= humedad <= 100:
         raise ValueError("La humedad debe estar entre 0 y 100")
 
+    client._latest_readings = {
+        "temperatura": temperatura,
+        "humedad": humedad,
+        "gas": gas,
+        "co": co_nivel,
+    }
+
     with transaction.atomic():
         dispositivo, _ = Dispositivo.objects.get_or_create(
             id=dispositivo_id,
@@ -107,6 +146,15 @@ def _save_measurement(client, payload):
 
         config, _ = UmbralConfig.objects.get_or_create(pk=1)
         max_contaminante = max(gas, co_nivel)
+        peligro_nuevo = False
+
+        peligro_nuevo |= _registrar_alerta_contaminante(
+            client, "Gas", gas, config.gas_max, "Peligro"
+        )
+        peligro_nuevo |= _registrar_alerta_contaminante(
+            client, "Monóxido de carbono", co_nivel, config.gas_max,
+            "Peligro - Monóxido"
+        )
 
         if max_contaminante <= 25:
             riesgo = "Seguro"
@@ -114,33 +162,8 @@ def _save_measurement(client, payload):
             riesgo = "Precaución"
         elif max_contaminante <= config.gas_max:
             riesgo = "Riesgo"
-            if not Alerta.objects.filter(tipo="Riesgo", atendida=False).exists():
-                Alerta.objects.create(
-                    tipo="Riesgo",
-                    descripcion=f"Nivel elevado - Gas: {gas} ppm | CO: {co_nivel} ppm",
-                    atendida=False
-                )
         else:
             riesgo = "Peligro"
-            if not Alerta.objects.filter(tipo="Peligro", atendida=False).exists():
-                descripcion_alerta = (
-                    f"Nivel crítico - Gas: {gas} ppm | CO: {co_nivel} ppm"
-                )
-                Alerta.objects.create(
-                    tipo="Peligro",
-                    descripcion=descripcion_alerta,
-                    atendida=False
-                )
-                enviar_alerta_telegram(descripcion_alerta)
-                client.publish(
-                    "control/alarma_led",
-                    json.dumps({
-                        "estado": "PELIGRO",
-                        "led": {"color": "red", "parpadeo": True, "intervalo": 500},
-                        "buzzer": {"activo": True, "duracion": 10000},
-                        "display": {"mensaje": "PELIGRO\nVentilar"}
-                    })
-                )
 
         medicion = Medicion.objects.create(
             temperatura=temperatura,
@@ -150,7 +173,48 @@ def _save_measurement(client, payload):
             riesgo=riesgo,
             sensor=dispositivo
         )
+    if peligro_nuevo:
+        print("🚨 Alerta crítica de contaminante enviada.")
     print(f"✅ Medición guardada exitosamente [ID: {medicion.id}] - Riesgo: {riesgo}")
+
+
+def _handle_device_state(client, payload):
+    estado = payload.decode("utf-8").strip().lower()
+    if estado not in {"verde", "amarillo", "rojo", "calentando"}:
+        print(f"⚠️ Estado de dispositivo desconocido: {estado!r}")
+        return
+
+    estado_anterior = getattr(client, "_device_state", None)
+    client._device_state = estado
+    if estado != "rojo" or estado_anterior == "rojo":
+        return
+
+    if Alerta.objects.filter(
+        tipo__in=("Peligro", "Peligro - Monóxido"), atendida=False
+    ).exists():
+        return
+
+    lecturas = getattr(client, "_latest_readings", {})
+    detalle = "\n".join(
+        f"{nombre}: {lecturas[campo]:.1f} {unidad}"
+        for campo, nombre, unidad in (
+            ("temperatura", "Temperatura", "°C"),
+            ("humedad", "Humedad", "%"),
+            ("co", "Monóxido de carbono", "ppm"),
+            ("gas", "Gas", "ppm"),
+        )
+        if campo in lecturas
+    )
+    descripcion = "El sensor detectó un ambiente peligroso (estado rojo)."
+    if detalle:
+        descripcion = f"{descripcion}\n{detalle}"
+
+    Alerta.objects.create(
+        tipo="Peligro",
+        descripcion=descripcion,
+        atendida=False,
+    )
+    enviar_alerta_telegram(descripcion)
 
 
 # --- Callbacks compatibles con Paho MQTT VERSION2 ---
@@ -160,6 +224,12 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
         print(f"📡 Conectado exitosamente al broker MQTT. Suscribiéndose a: {TOPICS}")
         for topic, qos in TOPICS:
             client.subscribe(topic, qos)
+        if not getattr(client, "_startup_notified", False):
+            client._startup_notified = True
+            enviar_alerta_telegram(
+                "El sistema ambiental está en funcionamiento y comenzó el monitoreo.",
+                titulo="🌿 SISTEMA AMBIENTAL 🌿",
+            )
     else:
         print(f"❌ Error al conectar con el broker. Código: {reason_code}")
 
@@ -167,6 +237,14 @@ def on_disconnect(client, userdata, flags, reason_code, properties=None):
     print(f"⚠️ Desconectado del broker MQTT (Código: {reason_code}). Intentando reconectar...")
 
 def on_message(client, userdata, msg):
+    if msg.topic == "control/estado":
+        try:
+            _handle_device_state(client, msg.payload)
+        except Exception as e:
+            print(f"❌ Error al procesar estado del dispositivo: {e}")
+            traceback.print_exc()
+        return
+
     if msg.topic in SENSOR_TOPICS:
         try:
             readings = getattr(client, "_sensor_readings", {})

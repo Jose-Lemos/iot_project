@@ -39,9 +39,9 @@
             <header class="topbar">
                 <h1>Dashboard de monitoreo</h1>
                 <div class="filter-wrap">
-                    <label for="filtroPeriodo">Periodo</label>
+                    <label for="filtroPeriodo">Período de datos</label>
                     <select id="filtroPeriodo" class="form-select form-select-sm" >
-                        <option value="diario" selected>24h</option>
+                        <option value="diario" selected>Día (24 h)</option>
                         <option value="semanal">Semana</option>
                         <option value="mensual">Mes</option>
                         <option value="anual">Año</option>
@@ -147,7 +147,15 @@
                 </div>
 
                 <div class="card-panel">
-                    <h3 class="section-title">Últimas mediciones</h3>
+                    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3 mb-3">
+                        <div>
+                            <h3 class="section-title mb-1">Últimas mediciones</h3>
+                            <p class="text-muted small mb-0">Se descargará el período seleccionado en el panel.</p>
+                        </div>
+                        <button id="btnDescargarMediciones" class="btn btn-primary" type="button">
+                            Descargar Excel
+                        </button>
+                    </div>
                     <div id="emptyMediciones" class="empty-state">Todavía no hay mediciones registradas.</div>
                     <div class="table-responsive">
                         <table class="table align-middle">

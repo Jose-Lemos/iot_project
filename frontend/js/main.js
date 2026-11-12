@@ -1,5 +1,6 @@
 import { cargarDatos } from './dashboard.js';
 import { cargarConfiguracion } from './configuration.js';
+import { descargarMediciones } from './measurements.js';
 
 document.querySelectorAll('.nav-btn').forEach((button) => {
     button.addEventListener('click', () => {
@@ -14,6 +15,7 @@ document.querySelectorAll('.nav-btn').forEach((button) => {
 });
 
 document.getElementById('filtroPeriodo').addEventListener('change', cargarDatos);
+document.getElementById('btnDescargarMediciones').addEventListener('click', descargarMediciones);
 
 cargarDatos();
 cargarConfiguracion();
