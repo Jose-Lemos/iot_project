@@ -12,7 +12,7 @@ import requests
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'iot_project.settings')
 django.setup()
 
-from api.models import Medicion, Dispositivo, Alerta, UmbralConfig
+from apps.api.models import Medicion, Dispositivo, Alerta, UmbralConfig
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mosquitto")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))

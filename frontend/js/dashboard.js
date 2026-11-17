@@ -1,4 +1,4 @@
-import { API_ESTADISTICAS } from './api.js';
+import { API_ESTADISTICAS, apiFetch } from './api.js';
 import { formatearNumero } from './formatters.js';
 import { actualizarEstado } from './status.js';
 import { renderChart } from './chart.js';
@@ -8,7 +8,7 @@ import { cargarMediciones } from './measurements.js';
 export async function cargarDatos() {
     const periodo = document.getElementById('filtroPeriodo').value;
     try {
-        const response = await fetch(`${API_ESTADISTICAS}?periodo=${periodo}`);
+        const response = await apiFetch(`${API_ESTADISTICAS}?periodo=${periodo}`);
         if (!response.ok) throw new Error('No se pudo obtener la estadística');
         const res = await response.json();
 

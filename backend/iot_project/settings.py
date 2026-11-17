@@ -12,21 +12,29 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
+from django.core.management.utils import get_random_secret_key
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
+DEBUG = os.getenv('DJANGO_DEBUG', 'false').lower() in ('1', 'true', 'yes')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured(
+            'Definí DJANGO_SECRET_KEY antes de iniciar con DEBUG desactivado.'
+        )
+    SECRET_KEY = get_random_secret_key()
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-=owe^%$gz+el1v6=u8vo0kb-7s9=1a@eup@0dw%@i0m#x31$f^'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv(
+        'DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1'
+    ).split(',')
+    if host.strip()
+]
 
 
 # Application definition
@@ -40,30 +48,63 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # Librerías externas
-    'rest_framework',  
+    'rest_framework',
     'corsheaders',
+    'rest_framework.authtoken',
 
     # Aplicaciones locales
-    'api',
+    'apps.api.apps.ApiConfig',
+    'apps.asistente.apps.AsistenteConfig',
+    'apps.seguridad.apps.SeguridadConfig',
 ]
 
-
-
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware', # Debe ir arriba de todo
-    'django.middleware.common.CommonMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# Permitir todos los orígenes para la feria
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.0.22', '10.145.178.2']
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        'CORS_ALLOWED_ORIGINS', 'http://localhost,http://127.0.0.1'
+    ).split(',')
+    if origin.strip()
+]
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+CORS_ALLOW_CREDENTIALS = False
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+X_FRAME_OPTIONS = 'DENY'
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_SSL_REDIRECT = os.getenv(
+    'DJANGO_SECURE_SSL_REDIRECT', 'false'
+).lower() in ('1', 'true', 'yes')
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'apps.seguridad.authentication.AutenticacionTokenConVencimiento',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+        'apps.seguridad.permissions.NoForzarCambioContrasena',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '10/hour',
+        'auth_login': '5/minute',
+    },
+}
 
 ROOT_URLCONF = 'iot_project.urls'
 
@@ -95,7 +136,7 @@ if os.getenv('DB_ENGINE', 'sqlite').lower() == 'postgresql':
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.getenv('DB_NAME', 'iot_data'),
             'USER': os.getenv('DB_USER', 'iot_user'),
-            'PASSWORD': os.getenv('DB_PASSWORD', 'iot_password'),
+            'PASSWORD': os.getenv('DB_PASSWORD', ''),
             'HOST': os.getenv('DB_HOST', 'postgres'),
             'PORT': os.getenv('DB_PORT', '5432'),
         }

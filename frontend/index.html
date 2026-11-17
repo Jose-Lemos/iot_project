@@ -9,7 +9,46 @@
     <link rel="stylesheet" href="./css/styles.css" />
 </head>
 <body>
-    <div class="app-shell">
+    <div id="authScreen" class="auth-screen">
+        <div class="auth-card">
+            <div class="brand-mark">✦</div>
+            <h1>VitalAir</h1>
+            <p class="text-muted">Ingresá para acceder al monitoreo ambiental.</p>
+
+            <form id="loginForm">
+                <div class="mb-3">
+                    <label class="form-label" for="loginUsername">Usuario</label>
+                    <input id="loginUsername" class="form-control" name="username" autocomplete="username" maxlength="150" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="loginPassword">Contraseña</label>
+                    <input id="loginPassword" class="form-control" type="password" name="password" autocomplete="current-password" required />
+                </div>
+                <button id="loginSubmit" class="btn btn-primary w-100" type="submit">Ingresar</button>
+            </form>
+
+            <form id="changePasswordForm" hidden>
+                <h2>Cambiá la contraseña inicial</h2>
+                <p class="text-muted small">Elegí una contraseña segura para continuar.</p>
+                <div class="mb-3">
+                    <label class="form-label" for="currentPassword">Contraseña actual</label>
+                    <input id="currentPassword" class="form-control" type="password" autocomplete="current-password" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="newPassword">Nueva contraseña</label>
+                    <input id="newPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="confirmPassword">Confirmar contraseña</label>
+                    <input id="confirmPassword" class="form-control" type="password" autocomplete="new-password" minlength="8" maxlength="128" required />
+                </div>
+                <button id="changePasswordSubmit" class="btn btn-primary w-100" type="submit">Guardar contraseña</button>
+            </form>
+            <div id="authMessage" class="alert alert-danger mt-3" role="alert" hidden></div>
+        </div>
+    </div>
+
+    <div id="appShell" class="app-shell" hidden>
         <aside class="sidebar">
             <div class="brand">
                 <div class="brand-mark">✦</div>
@@ -29,9 +68,16 @@
                 <span>🚨 Alertas</span>
                 <small>Eventos</small>
             </button>
+            <button class="nav-btn" data-view="asistente">
+                <span>🤖 Asistente IA</span>
+                <small>Chat</small>
+            </button>
             <button class="nav-btn" data-view="configuracion">
                 <span>⚙️ Configuración</span>
                 <small>Ajustes</small>
+            </button>
+            <button id="btnLogout" class="nav-btn mt-auto" type="button">
+                <span>🔒 Cerrar sesión</span>
             </button>
         </aside>
 
@@ -181,6 +227,22 @@
                     <h3 class="section-title">Resumen de alertas</h3>
                     <p class="text-muted">Se muestran las alertas registradas en el período seleccionado.</p>
                     <div id="listaAlertas" class="mt-3">Cargando alertas...</div>
+                </div>
+            </section>
+
+            <section id="asistente" class="page">
+                <div class="card-panel assistant-panel">
+                    <h3 class="section-title mb-2">Asistente ambiental</h3>
+                    <p class="text-muted">Consultá el estado del ambiente, pedí recomendaciones o preguntá por mediciones y alertas de una fecha u horario específico.</p>
+                    <div id="chatMessages" class="chat-messages" role="log" aria-live="polite">
+                        <div class="chat-message assistant-message">¡Hola! Puedo ayudarte a interpretar las mediciones recientes. ¿Qué querés saber?</div>
+                    </div>
+                    <form id="chatForm" class="chat-form">
+                        <label class="visually-hidden" for="chatInput">Tu pregunta</label>
+                        <textarea id="chatInput" class="form-control" rows="2" maxlength="1000" placeholder="Por ejemplo: ¿qué recomendaciones tenés para el estado actual?" required></textarea>
+                        <button id="chatSend" class="btn btn-primary" type="submit">Enviar</button>
+                    </form>
+                    <p class="text-muted small mt-2 mb-0">La IA es orientativa y no reemplaza los protocolos de seguridad del lugar.</p>
                 </div>
             </section>
 

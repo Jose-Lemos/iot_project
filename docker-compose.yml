@@ -5,13 +5,13 @@ services:
     container_name: iot_postgres
     restart: always
     environment:
-      POSTGRES_USER: iot_user
-      POSTGRES_PASSWORD: iot_password
-      POSTGRES_DB: iot_data
+      POSTGRES_USER: "${DB_USER:-iot_user}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in the project .env file}"
+      POSTGRES_DB: "${DB_NAME:-iot_data}"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U iot_user -d iot_data"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -23,7 +23,20 @@ services:
     working_dir: /app
     environment:
       DB_ENGINE: postgresql
-    command: python manage.py migrate --noinput
+      DB_NAME: "${DB_NAME:-iot_data}"
+      DB_USER: "${DB_USER:-iot_user}"
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in the project .env file}"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DJANGO_DEBUG: "${DJANGO_DEBUG:-false}"
+      DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-}"
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1}"
+      CREATE_DEMO_USER: "${CREATE_DEMO_USER:-false}"
+    command: >-
+      sh -c "python manage.py migrate --noinput &&
+      if [ \"$$CREATE_DEMO_USER\" = 'true' ]; then
+      python manage.py create_demo_user; fi"
     volumes:
       - ./backend:/app
     depends_on:
@@ -50,6 +63,17 @@ services:
     restart: always
     environment:
       DB_ENGINE: postgresql
+      DB_NAME: "${DB_NAME:-iot_data}"
+      DB_USER: "${DB_USER:-iot_user}"
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in the project .env file}"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DJANGO_DEBUG: "${DJANGO_DEBUG:-false}"
+      DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-}"
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1}"
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
+      GROQ_MODEL: "${GROQ_MODEL:-openai/gpt-oss-120b}"
     ports:
       - "8000:8000"
     volumes:
@@ -70,11 +94,20 @@ services:
       environment:
         PYTHONPATH: /app
         DB_ENGINE: postgresql
+        DB_NAME: "${DB_NAME:-iot_data}"
+        DB_USER: "${DB_USER:-iot_user}"
+        DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD in the project .env file}"
+        DB_HOST: postgres
+        DB_PORT: "5432"
+        DJANGO_DEBUG: "${DJANGO_DEBUG:-false}"
+        DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-}"
+        DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+        CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1}"
         MQTT_BROKER: mosquitto
         TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
         TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
       # Ejecutamos el script de forma persistente
-      command: python api/mqtt_listener.py
+      command: python apps/api/mqtt_listener.py
       volumes:
         - ./backend:/app
       depends_on:

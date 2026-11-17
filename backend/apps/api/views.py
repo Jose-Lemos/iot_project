@@ -4,8 +4,11 @@ from rest_framework.response import Response
 from django.db.models import Avg, Max, Count, Min
 from django.utils import timezone
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 from .models import Dispositivo, Medicion, Alerta, UmbralConfig
 from .serializers import DispositivoSerializer, MedicionSerializer, AlertaSerializer, UmbralConfigSerializer
+
+ZONA_ARGENTINA = ZoneInfo('America/Argentina/Buenos_Aires')
 
 class DispositivoViewSet(viewsets.ModelViewSet):
     queryset = Dispositivo.objects.all()
@@ -59,7 +62,10 @@ class AlertaViewSet(viewsets.ModelViewSet):
 
         # Historial formateado para alimentar los gráficos de Chart.js directamente
         historial = mediciones_filtradas.order_by('fecha')
-        labels = [m.fecha.strftime('%d/%m %H:%M') for m in historial]
+        labels = [
+            timezone.localtime(m.fecha, ZONA_ARGENTINA).strftime('%d/%m %H:%M')
+            for m in historial
+        ]
         data_temp = [m.temperatura for m in historial]
         data_humedad = [m.humedad for m in historial]
         data_gas = [m.gas for m in historial]

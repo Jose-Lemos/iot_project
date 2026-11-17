@@ -1,4 +1,4 @@
-import { API_MEDICIONES } from './api.js';
+import { API_MEDICIONES, apiFetch } from './api.js';
 import { formatearNumero } from './formatters.js';
 
 const DURACION_PERIODO = {
@@ -17,7 +17,7 @@ const NOMBRE_PERIODO = {
 
 export async function cargarMediciones() {
     try {
-        const response = await fetch(API_MEDICIONES);
+        const response = await apiFetch(API_MEDICIONES);
         if (!response.ok) throw new Error('No se pudo cargar mediciones');
         const mediciones = await response.json();
 
@@ -25,7 +25,7 @@ export async function cargarMediciones() {
         const ordenadas = [...lista].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
         if (!ordenadas.length) {
-            document.getElementById('tablaMediciones').innerHTML = '';
+            document.getElementById('tablaMediciones').replaceChildren();
             document.getElementById('emptyMediciones').style.display = 'block';
             return;
         }
@@ -39,28 +39,39 @@ export async function cargarMediciones() {
         document.getElementById('medCo').textContent = `${formatearNumero(ultima.co, ' ppm')}`;
         document.getElementById('medRiesgo').textContent = ultima.riesgo || 'Sin dato';
 
-        const filas = ordenadas.slice(0, 8).map((m) => {
+        const cuerpo = document.getElementById('tablaMediciones');
+        cuerpo.replaceChildren();
+        ordenadas.slice(0, 8).forEach((m) => {
             const riesgo = String(m.riesgo || 'Normal');
             const badgeClass = riesgo.toLowerCase().includes('alto') || riesgo.toLowerCase().includes('peligro')
                 ? 'badge-danger'
                 : riesgo.toLowerCase().includes('medio') || riesgo.toLowerCase().includes('precaucion')
                     ? 'badge-warning'
                     : 'badge-safe';
-
-            return `
-                <tr>
-                    <td>${new Date(m.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                    <td>${formatearNumero(m.temperatura, ' °C')}</td>
-                    <td>${formatearNumero(m.humedad, ' %')}</td>
-                    <td>${formatearNumero(m.gas, ' ppm')}</td>
-                    <td>${formatearNumero(m.co, ' ppm')}</td>
-                    <td><span class="badge-risk ${badgeClass}">${riesgo}</span></td>
-                    <td>${m.sensor ?? 'N/A'}</td>
-                </tr>
-            `;
-        }).join('');
-
-        document.getElementById('tablaMediciones').innerHTML = filas;
+            const fila = document.createElement('tr');
+            const valores = [
+                new Date(m.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }),
+                formatearNumero(m.temperatura, ' °C'),
+                formatearNumero(m.humedad, ' %'),
+                formatearNumero(m.gas, ' ppm'),
+                formatearNumero(m.co, ' ppm'),
+            ];
+            valores.forEach((valor) => {
+                const celda = document.createElement('td');
+                celda.textContent = valor;
+                fila.appendChild(celda);
+            });
+            const riesgoCelda = document.createElement('td');
+            const insignia = document.createElement('span');
+            insignia.className = `badge-risk ${badgeClass}`;
+            insignia.textContent = riesgo;
+            riesgoCelda.appendChild(insignia);
+            fila.appendChild(riesgoCelda);
+            const sensorCelda = document.createElement('td');
+            sensorCelda.textContent = m.sensor ?? 'N/A';
+            fila.appendChild(sensorCelda);
+            cuerpo.appendChild(fila);
+        });
     } catch (error) {
         console.error('Error cargando mediciones:', error);
     }
@@ -132,7 +143,7 @@ export async function descargarMediciones() {
     boton.textContent = 'Preparando archivo...';
 
     try {
-        const response = await fetch(API_MEDICIONES);
+        const response = await apiFetch(API_MEDICIONES);
         if (!response.ok) throw new Error('No se pudieron obtener las mediciones.');
         const respuesta = await response.json();
         const mediciones = Array.isArray(respuesta) ? respuesta : (respuesta.results || []);

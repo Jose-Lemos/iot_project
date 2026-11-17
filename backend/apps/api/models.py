@@ -9,7 +9,7 @@ class Dispositivo(models.Model):
         return self.nombre
 
 class Medicion(models.Model):
-    fecha = models.DateTimeField(auto_now_add=True)
+    fecha = models.DateTimeField(auto_now_add=True, db_index=True)
     temperatura = models.FloatField()
     humedad = models.FloatField()
     gas = models.FloatField()
@@ -18,7 +18,7 @@ class Medicion(models.Model):
     sensor = models.ForeignKey(Dispositivo, on_delete=models.CASCADE, related_name='mediciones')
 
 class Alerta(models.Model):
-    fecha = models.DateTimeField(auto_now_add=True)
+    fecha = models.DateTimeField(auto_now_add=True, db_index=True)
     tipo = models.CharField(max_length=100) # Ejemplo: "Fuga de Gas", "Alta Temperatura"
     descripcion = models.TextField()
     atendida = models.BooleanField(default=False)

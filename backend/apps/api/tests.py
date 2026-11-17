@@ -1,13 +1,48 @@
+from datetime import timedelta
+from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APITestCase
 from unittest.mock import patch
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 from .models import Alerta, Dispositivo, Medicion, UmbralConfig
 from .mqtt_listener import on_connect, on_message
 
 
 class MeasurementStatisticsTests(APITestCase):
+	def setUp(self):
+		usuario = get_user_model().objects.create_user(
+			username="test-user",
+			password="test-password",
+		)
+		self.client.force_authenticate(usuario)
+
+	def test_chart_labels_use_argentina_time(self):
+		dispositivo = Dispositivo.objects.create(
+			nombre="Sensor de prueba",
+			ubicacion="Laboratorio",
+		)
+		medicion = Medicion.objects.create(
+			sensor=dispositivo,
+			temperatura=24.5,
+			humedad=48,
+			gas=12,
+			co=3,
+			riesgo="Bajo",
+		)
+		fecha = timezone.now() - timedelta(hours=5)
+		Medicion.objects.filter(pk=medicion.pk).update(fecha=fecha)
+
+		response = self.client.get("/api/alertas/estadisticas/")
+
+		fecha_argentina = fecha.astimezone(ZoneInfo("America/Argentina/Buenos_Aires"))
+		self.assertEqual(
+			response.data["grafico"]["labels"],
+			[fecha_argentina.strftime("%d/%m %H:%M")],
+		)
+
 	def test_statistics_include_co_in_chart_data(self):
 		dispositivo = Dispositivo.objects.create(
 			nombre="Sensor de prueba",
@@ -29,7 +64,7 @@ class MeasurementStatisticsTests(APITestCase):
 
 
 class MQTTListenerTests(TestCase):
-	@patch("api.mqtt_listener.enviar_alerta_telegram")
+	@patch("apps.api.mqtt_listener.enviar_alerta_telegram")
 	def test_sends_startup_telegram_once_after_mqtt_connect(
 		self, enviar_alerta_telegram
 	):
@@ -43,7 +78,7 @@ class MQTTListenerTests(TestCase):
 			titulo="🌿 SISTEMA AMBIENTAL 🌿",
 		)
 
-	@patch("api.mqtt_listener.enviar_alerta_telegram")
+	@patch("apps.api.mqtt_listener.enviar_alerta_telegram")
 	def test_does_not_send_startup_telegram_when_mqtt_connection_fails(
 		self, enviar_alerta_telegram
 	):
@@ -122,7 +157,7 @@ class MQTTListenerTests(TestCase):
 
 		self.assertEqual(Medicion.objects.count(), 1)
 
-	@patch("api.mqtt_listener.enviar_alerta_telegram")
+	@patch("apps.api.mqtt_listener.enviar_alerta_telegram")
 	def test_sends_telegram_when_configured_threshold_is_exceeded(
 		self, enviar_alerta_telegram
 	):
@@ -138,7 +173,7 @@ class MQTTListenerTests(TestCase):
 		enviar_alerta_telegram.assert_called_once()
 		self.assertEqual(Alerta.objects.get().tipo, "Peligro")
 
-	@patch("api.mqtt_listener.enviar_alerta_telegram")
+	@patch("apps.api.mqtt_listener.enviar_alerta_telegram")
 	def test_saves_and_sends_telegram_for_high_carbon_monoxide(
 		self, enviar_alerta_telegram
 	):
@@ -156,7 +191,7 @@ class MQTTListenerTests(TestCase):
 		self.assertIn("Monóxido de carbono: 120.0 ppm", alerta.descripcion)
 		enviar_alerta_telegram.assert_called_once_with(alerta.descripcion)
 
-	@patch("api.mqtt_listener.enviar_alerta_telegram")
+	@patch("apps.api.mqtt_listener.enviar_alerta_telegram")
 	def test_saves_separate_alerts_when_gas_and_carbon_monoxide_are_high(
 		self, enviar_alerta_telegram
 	):
@@ -181,7 +216,7 @@ class MQTTListenerTests(TestCase):
 		)
 		self.assertEqual(enviar_alerta_telegram.call_count, 2)
 
-	@patch("api.mqtt_listener.enviar_alerta_telegram")
+	@patch("apps.api.mqtt_listener.enviar_alerta_telegram")
 	def test_gas_alert_does_not_suppress_carbon_monoxide_alert(
 		self, enviar_alerta_telegram
 	):
@@ -201,7 +236,7 @@ class MQTTListenerTests(TestCase):
 		self.assertIn("Monóxido de carbono: 120.0 ppm", alerta_co.descripcion)
 		enviar_alerta_telegram.assert_called_once_with(alerta_co.descripcion)
 
-	@patch("api.mqtt_listener.enviar_alerta_telegram")
+	@patch("apps.api.mqtt_listener.enviar_alerta_telegram")
 	def test_sends_telegram_for_carbon_monoxide_risk_alert(
 		self, enviar_alerta_telegram
 	):
@@ -218,7 +253,7 @@ class MQTTListenerTests(TestCase):
 		self.assertEqual(alerta.tipo, "Riesgo - Monóxido")
 		enviar_alerta_telegram.assert_called_once_with(alerta.descripcion)
 
-	@patch("api.mqtt_listener.enviar_alerta_telegram")
+	@patch("apps.api.mqtt_listener.enviar_alerta_telegram")
 	def test_sends_telegram_when_device_reports_danger_once_per_transition(
 		self, enviar_alerta_telegram
 	):
